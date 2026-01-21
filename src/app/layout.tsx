@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -37,7 +38,7 @@ export default function RootLayout({
                 </span>
               </Link>
 
-              <nav className="flex items-center gap-6">
+              <nav className="flex items-center gap-4">
                 <Link
                   href="/privacy"
                   className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
@@ -50,6 +51,7 @@ export default function RootLayout({
                 >
                   Terms
                 </Link>
+                <ThemeToggle />
               </nav>
             </div>
           </div>

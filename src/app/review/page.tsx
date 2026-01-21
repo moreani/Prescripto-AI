@@ -93,8 +93,20 @@ function ReviewPageContent() {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to generate notes');
+                let errorMessage = 'Failed to generate notes';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorMessage;
+                } catch {
+                    // Response was not valid JSON, try to get text
+                    try {
+                        const text = await response.text();
+                        if (text) errorMessage = text;
+                    } catch {
+                        // Ignore text parsing errors
+                    }
+                }
+                throw new Error(errorMessage);
             }
 
             const notes = await response.json();

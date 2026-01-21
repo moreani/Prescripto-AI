@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { MedicationCard } from '@/components/MedicationCard';
 import { ScheduleTable } from '@/components/ScheduleTable';
 import { DisclaimerBanner, VerificationChecklist } from '@/components/DisclaimerBanner';
+import { EmailModal } from '@/components/EmailModal';
 import { NotesOutput } from '@/lib/schema';
 import {
     Loader2,
@@ -17,7 +18,8 @@ import {
     ArrowLeft,
     MessageCircle,
     Trash2,
-    Check
+    Check,
+    Mail
 } from 'lucide-react';
 
 function NotesPageContent() {
@@ -32,6 +34,8 @@ function NotesPageContent() {
     const [showFeedbackForm, setShowFeedbackForm] = useState(false);
     const [feedbackComment, setFeedbackComment] = useState('');
     const [issueType, setIssueType] = useState<string>('');
+    const [showEmailModal, setShowEmailModal] = useState(false);
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
 
     useEffect(() => {
         if (!prescriptionId) {
@@ -95,6 +99,42 @@ function NotesPageContent() {
 
     const handlePrint = () => {
         window.print();
+    };
+
+    const handleEmailPDF = async (email: string) => {
+        if (!notes) throw new Error('No notes available');
+
+        setIsSendingEmail(true);
+
+        try {
+            const response = await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email,
+                    notes,
+                }),
+            });
+
+            if (!response.ok) {
+                let errorMessage = 'Failed to send email';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorMessage;
+                } catch {
+                    // Response was not valid JSON, try to get text
+                    try {
+                        const text = await response.text();
+                        if (text) errorMessage = text;
+                    } catch {
+                        // Ignore text parsing errors
+                    }
+                }
+                throw new Error(errorMessage);
+            }
+        } finally {
+            setIsSendingEmail(false);
+        }
     };
 
     const handleFeedback = async (helpful: boolean) => {
@@ -238,6 +278,14 @@ function NotesPageContent() {
                         </button>
 
                         <button
+                            onClick={() => setShowEmailModal(true)}
+                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl font-medium shadow-lg transition-all"
+                        >
+                            <Mail className="w-5 h-5" />
+                            Email PDF
+                        </button>
+
+                        <button
                             onClick={handlePrint}
                             className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-xl font-medium border border-gray-200 dark:border-gray-600 transition-colors no-print"
                         >
@@ -354,6 +402,14 @@ function NotesPageContent() {
                     </Link>
                 </div>
             </div>
+
+            {/* Email Modal */}
+            <EmailModal
+                isOpen={showEmailModal}
+                onClose={() => setShowEmailModal(false)}
+                onSend={handleEmailPDF}
+                isSending={isSendingEmail}
+            />
         </div>
     );
 }

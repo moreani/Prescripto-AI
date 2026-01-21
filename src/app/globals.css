@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (.dark &);
+
 :root {
   --font-inter: 'Inter', system-ui, -apple-system, sans-serif;
 }
@@ -35,7 +37,7 @@ body {
   ::-webkit-scrollbar-thumb {
     background: #475569;
   }
-  
+
   ::-webkit-scrollbar-thumb:hover {
     background: #64748b;
   }
@@ -56,14 +58,17 @@ body {
 
 /* Print styles */
 @media print {
-  header, footer, .no-print {
+
+  header,
+  footer,
+  .no-print {
     display: none !important;
   }
-  
+
   main {
     padding: 0 !important;
   }
-  
+
   body {
     background: white !important;
     color: black !important;
@@ -103,9 +108,12 @@ body {
 
 /* Pulse animation for loading states */
 @keyframes pulse-subtle {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.7;
   }
@@ -120,6 +128,7 @@ body {
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }
@@ -136,4 +145,21 @@ body {
     background: linear-gradient(90deg, #1f2937 25%, #374151 50%, #1f2937 75%);
     background-size: 200% 100%;
   }
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
 }

@@ -59,7 +59,7 @@ export async function extractPrescriptionWithGemini(
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
-    const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 
     if (!apiKey) {
         throw new Error('GEMINI_API_KEY is not configured');
@@ -117,7 +117,7 @@ export async function extractPrescriptionFromImage(
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
-    const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 
     if (!apiKey) {
         throw new Error('GEMINI_API_KEY is not configured');
