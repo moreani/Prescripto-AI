@@ -29,67 +29,70 @@ async function extractTextWithGeminiVision(
         },
     };
 
-    const prompt = `You are an expert medical prescription OCR system trained to read HANDWRITTEN doctor prescriptions.
+    const prompt = `You are an expert medical prescription OCR specialist. Your task is to PERFECTLY transcribe ALL text from this prescription image.
 
-CRITICAL: This is likely a HANDWRITTEN prescription. Doctors often have difficult handwriting. Be very careful and thorough.
+CRITICAL RULES:
+1. This is a HANDWRITTEN prescription with DIFFICULT doctor handwriting - you MUST try VERY hard to read it
+2. DO NOT leave any field empty - always transcribe what you see, even if you need to guess
+3. If unsure about a word, provide your BEST GUESS based on medical context and mark with [?]
+4. NEVER say "None visible" or "Not legible" - always attempt to read the text
 
-Extract ALL visible text from this prescription image. Pay special attention to:
+COMMON MEDICAL ABBREVIATIONS (memorize these):
+- c/o = Complaining of
+- H/o = History of  
+- Adv / Adv: = Advice/Recommendations
+- Imp / Imp: = Impression/Diagnosis
+- Rx = Prescription
+- BP = Blood Pressure
+- PR = Pulse Rate
+- RBS = Random Blood Sugar
+- IV = Intravenous
+- stat = immediately
+- OD = Once daily, BD = Twice daily, TDS = Three times daily
+- Tab/T. = Tablet, Cap/C. = Capsule, Inj = Injection, Syr = Syrup
+- ORS = Oral Rehydration Salts
+- ml = milliliters, mg = milligrams, % = percent
 
-1. **Header Information**:
-   - Hospital/Clinic name (may be in regional language + English)
-   - Doctor name, qualifications, registration number
-   - Contact information
+INDIAN PRESCRIPTION SPECIFIC:
+- Often has printed hospital header at top
+- Handwritten content below in a mix of English and medical terms
+- May have regional language (Kannada, Hindi, Tamil etc.) - transliterate if possible
+- Circled numbers indicate quantity
+- Arrows (→) often indicate instructions
 
-2. **Patient Details**:
-   - Patient name, age, sex, date
-   - Address if visible
-
-3. **Medications** (most important - look very carefully):
-   - Look for numbered items (1, 2, 3...) or circled numbers
-   - Each medication line typically has: drug name, dosage, frequency
-   - Common abbreviations to recognize:
-     * T. or Tab = Tablet
-     * C. or Cap = Capsule
-     * Inj = Injection
-     * Syr = Syrup
-     * OD = Once daily
-     * BD = Twice daily
-     * TDS/TID = Three times daily
-     * QID = Four times daily
-     * HS = At bedtime
-     * SOS/PRN = As needed
-     * AC = Before meals
-     * PC = After meals
-   - Numbers in circles often indicate quantity (e.g., ⑩ = 10 tablets)
-
-4. **Instructions**:
-   - H/o = History of
-   - c/o = Complaining of
-   - Rx = Prescription
-   - Advice, follow-up dates
-
-5. **Footer**:
-   - Pharmacy details if any
-   - Any stamps or signatures
-
-Return the extracted text in a STRUCTURED format:
+EXTRACTION FORMAT - Fill EVERY field:
 ---
-HOSPITAL: [name]
-DOCTOR: [name and qualifications]
-PATIENT: [name], Age: [age], Sex: [M/F], Date: [date]
+DATE: [date from prescription]
+HOSPITAL: [full hospital/clinic name from header]
+DOCTOR: [doctor name, qualifications, registration if visible]
+PATIENT: [name], Age: [age], Sex: [M/F]
+ID/UHID: [any ID number visible]
 
-DIAGNOSIS/HISTORY:
-[any diagnosis or history notes]
+CHIEF COMPLAINTS (c/o):
+[what patient is complaining of - read carefully]
 
-MEDICATIONS:
-1. [Drug name] [Strength] - [Dose] [Frequency] - [Quantity/Duration]
-2. [Continue for all medications...]
+VITAL SIGNS:
+- BP: [blood pressure if visible]
+- PR/Pulse: [pulse rate if visible]
+- RBS: [blood sugar if visible]
+- Other: [any other vitals]
 
-ADVICE:
-[any additional instructions]
+DIAGNOSIS/IMPRESSION (Imp):
+[diagnosis or impression - this is crucial]
+
+MEDICATIONS/TREATMENT (Rx or Adv):
+1. [First medication/treatment - include dosage, route (oral/IV), frequency]
+2. [Second medication/treatment]
+3. [Continue for ALL items...]
+
+ADDITIONAL ADVICE:
+[any other instructions like diet, rest, follow-up]
+
+SIGNATURE:
+[doctor signature or registration number at bottom]
 ---
 
-If any text is unclear, make your best educated guess based on medical context, but indicate uncertainty with [?].`;
+IMPORTANT: Look at EVERY part of the image. Do not skip anything. Even scribbles may contain important information.`;
 
     const result = await geminiModel.generateContent([prompt, imagePart]);
     const response = await result.response;
