@@ -3,13 +3,14 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { CheckCircle, Mail, Upload, Home, Loader2, Download } from 'lucide-react';
+import { CheckCircle, Mail, Upload, Home, Loader2, Download, AlertTriangle, FileText } from 'lucide-react';
 
 function SuccessContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const email = searchParams.get('email') || '';
     const isDownloadMode = searchParams.get('download') === 'true';
+    const isQAMode = searchParams.get('qa') === 'true';
 
     const [showCheckmark, setShowCheckmark] = useState(false);
 
@@ -20,15 +21,27 @@ function SuccessContent() {
     }, []);
 
     return (
-        <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-gray-50 to-green-50 dark:from-gray-950 dark:to-emerald-950 flex items-center justify-center py-12 px-4">
+        <div className={`min-h-[calc(100vh-4rem)] flex items-center justify-center py-12 px-4 ${
+            isQAMode 
+                ? 'bg-gradient-to-br from-gray-50 to-red-50 dark:from-gray-950 dark:to-red-950' 
+                : 'bg-gradient-to-br from-gray-50 to-green-50 dark:from-gray-950 dark:to-emerald-950'
+        }`}>
             <div className="max-w-md w-full text-center">
                 {/* Success Icon */}
                 <div className={`
                     mb-8 transition-all duration-500 ease-out
                     ${showCheckmark ? 'scale-100 opacity-100' : 'scale-50 opacity-0'}
                 `}>
-                    <div className="w-24 h-24 mx-auto bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center shadow-xl shadow-green-500/30">
-                        <CheckCircle className="w-12 h-12 text-white" strokeWidth={2.5} />
+                    <div className={`w-24 h-24 mx-auto rounded-full flex items-center justify-center shadow-xl ${
+                        isQAMode 
+                            ? 'bg-gradient-to-br from-amber-400 to-red-600 shadow-red-500/30'
+                            : 'bg-gradient-to-br from-green-400 to-emerald-600 shadow-green-500/30'
+                    }`}>
+                        {isQAMode ? (
+                            <FileText className="w-12 h-12 text-white" strokeWidth={2.5} />
+                        ) : (
+                            <CheckCircle className="w-12 h-12 text-white" strokeWidth={2.5} />
+                        )}
                     </div>
                 </div>
 
@@ -37,47 +50,84 @@ function SuccessContent() {
                     transition-all duration-500 delay-200
                     ${showCheckmark ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
                 `}>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-                        Your Prescription is Ready!
-                    </h1>
-
-                    {isDownloadMode ? (
+                    {isQAMode ? (
                         <>
+                            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+                                QA Report Downloaded!
+                            </h1>
+
                             <p className="text-gray-600 dark:text-gray-400 mb-2">
-                                Your medication schedule has been downloaded as a PDF.
+                                Your raw transcription report has been downloaded for accuracy verification.
                             </p>
 
-                            {/* Download Confirmation */}
-                            <div className="flex items-center justify-center gap-2 mb-8 mt-4">
-                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                                    <Download className="w-5 h-5 text-green-600 dark:text-green-400" />
-                                    <span className="font-medium text-gray-900 dark:text-white">PDF Downloaded</span>
+                            {/* QA Mode Warning */}
+                            <div className="flex items-center justify-center gap-2 mb-4 mt-4">
+                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/30 rounded-lg border border-red-200 dark:border-red-800">
+                                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                                    <span className="font-medium text-red-700 dark:text-red-300">QA/Testing Mode</span>
                                 </div>
                             </div>
 
-                            <p className="text-sm text-gray-500 dark:text-gray-500 mb-8">
-                                Check your downloads folder for the prescription PDF.
-                            </p>
+                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-8 text-left">
+                                <p className="text-sm text-amber-800 dark:text-amber-200">
+                                    <strong>This PDF contains:</strong>
+                                </p>
+                                <ul className="text-sm text-amber-700 dark:text-amber-300 mt-2 space-y-1">
+                                    <li>• Raw OCR transcription (no processing)</li>
+                                    <li>• Abbreviations NOT expanded</li>
+                                    <li>• Units NOT normalized</li>
+                                    <li>• [UNCLEAR] markers for illegible text</li>
+                                </ul>
+                                <p className="text-sm text-red-600 dark:text-red-400 mt-3 font-semibold">
+                                    ⚠️ NOT for patient use
+                                </p>
+                            </div>
                         </>
                     ) : (
                         <>
-                            <p className="text-gray-600 dark:text-gray-400 mb-2">
-                                We've converted your prescription and sent the medication schedule to:
-                            </p>
+                            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+                                Your Prescription is Ready!
+                            </h1>
 
-                            {/* Email Display */}
-                            {email && (
-                                <div className="flex items-center justify-center gap-2 mb-8 mt-4">
-                                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                                        <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                        <span className="font-medium text-gray-900 dark:text-white">{email}</span>
+                            {isDownloadMode ? (
+                                <>
+                                    <p className="text-gray-600 dark:text-gray-400 mb-2">
+                                        Your medication schedule has been downloaded as a PDF.
+                                    </p>
+
+                                    {/* Download Confirmation */}
+                                    <div className="flex items-center justify-center gap-2 mb-8 mt-4">
+                                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                                            <Download className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                            <span className="font-medium text-gray-900 dark:text-white">PDF Downloaded</span>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
 
-                            <p className="text-sm text-gray-500 dark:text-gray-500 mb-8">
-                                Please check your inbox (and spam folder) for the PDF with your medication schedule.
-                            </p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-500 mb-8">
+                                        Check your downloads folder for the prescription PDF.
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <p className="text-gray-600 dark:text-gray-400 mb-2">
+                                        We've converted your prescription and sent the medication schedule to:
+                                    </p>
+
+                                    {/* Email Display */}
+                                    {email && (
+                                        <div className="flex items-center justify-center gap-2 mb-8 mt-4">
+                                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                                <span className="font-medium text-gray-900 dark:text-white">{email}</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <p className="text-sm text-gray-500 dark:text-gray-500 mb-8">
+                                        Please check your inbox (and spam folder) for the PDF with your medication schedule.
+                                    </p>
+                                </>
+                            )}
                         </>
                     )}
                 </div>

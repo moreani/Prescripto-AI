@@ -8,12 +8,37 @@ interface GenerateNotesRequest {
     medications: Medication[];
     follow_up?: string | null;
     tests?: string[] | null;
+    // Clinical data
+    patient_info?: {
+        name?: string | null;
+        age?: string | null;
+        sex?: string | null;
+        uhid?: string | null;
+    } | null;
+    date?: string | null;
+    doctor_info?: {
+        name?: string | null;
+        qualifications?: string | null;
+        hospital?: string | null;
+    } | null;
+    complaints?: string[] | null;
+    vitals?: {
+        bp?: string | null;
+        pulse?: string | null;
+        rbs?: string | null;
+        fbs?: string | null;
+        ppbs?: string | null;
+        spo2?: string | null;
+        temperature?: string | null;
+    } | null;
+    diagnosis?: string | null;
+    advice?: string[] | null;
 }
 
 export async function POST(request: NextRequest) {
     try {
         const body: GenerateNotesRequest = await request.json();
-        const { prescription_id, medications, follow_up, tests } = body;
+        const { prescription_id, medications, follow_up, tests, patient_info, date, doctor_info, complaints, vitals, diagnosis, advice } = body;
 
         if (!prescription_id || !medications) {
             return NextResponse.json(
@@ -33,14 +58,47 @@ export async function POST(request: NextRequest) {
         // Generate schedule from medications
         const schedule = generateSchedule(medications);
 
-        // Generate markdown notes
-        const notes_markdown = generateNotesMarkdown(medications, follow_up, tests);
+        // Generate markdown notes with clinical data
+        const notes_markdown = generateNotesMarkdown(medications, follow_up, tests, {
+            patient_info,
+            date,
+            doctor_info,
+            complaints,
+            vitals,
+            diagnosis,
+            advice,
+        });
 
         const result: NotesOutput = {
             prescription_id,
             notes_markdown,
             schedule,
             meds_display: medications,
+            // Include clinical data in the output for the PDF generator
+            patient_info: patient_info ? {
+                name: patient_info.name || null,
+                age: patient_info.age || null,
+                sex: patient_info.sex || null,
+                uhid: patient_info.uhid || null,
+            } : null,
+            date: date || null,
+            doctor_info: doctor_info ? {
+                name: doctor_info.name || null,
+                qualifications: doctor_info.qualifications || null,
+                hospital: doctor_info.hospital || null,
+            } : null,
+            complaints: complaints || null,
+            vitals: vitals ? {
+                bp: vitals.bp || null,
+                pulse: vitals.pulse || null,
+                rbs: vitals.rbs || null,
+                fbs: vitals.fbs || null,
+                ppbs: vitals.ppbs || null,
+                spo2: vitals.spo2 || null,
+                temperature: vitals.temperature || null,
+            } : null,
+            diagnosis: diagnosis || null,
+            advice: advice || null,
         };
 
         return NextResponse.json(result);
@@ -101,15 +159,78 @@ function generateSchedule(medications: Medication[]): NotesOutput['schedule'] {
 function generateNotesMarkdown(
     medications: Medication[],
     follow_up?: string | null,
-    tests?: string[] | null
+    tests?: string[] | null,
+    clinicalData?: {
+        patient_info?: { name?: string | null; age?: string | null; sex?: string | null; uhid?: string | null; } | null;
+        date?: string | null;
+        doctor_info?: { name?: string | null; qualifications?: string | null; hospital?: string | null; } | null;
+        complaints?: string[] | null;
+        vitals?: { bp?: string | null; pulse?: string | null; rbs?: string | null; fbs?: string | null; ppbs?: string | null; spo2?: string | null; temperature?: string | null; } | null;
+        diagnosis?: string | null;
+        advice?: string[] | null;
+    }
 ): string {
-    let markdown = `## Your Medication Summary\n\n`;
+    let markdown = `## Prescription Summary\n\n`;
 
-    markdown += `This prescription contains **${medications.length} medication${medications.length !== 1 ? 's' : ''}** `;
-    markdown += `prescribed by your doctor. Please read the instructions carefully and follow them as directed.\n\n`;
+    // Patient & Doctor Info
+    if (clinicalData?.patient_info || clinicalData?.doctor_info || clinicalData?.date) {
+        if (clinicalData.date) {
+            markdown += `**Date:** ${clinicalData.date}\n\n`;
+        }
+        if (clinicalData.doctor_info?.hospital) {
+            markdown += `**Hospital:** ${clinicalData.doctor_info.hospital}\n`;
+        }
+        if (clinicalData.doctor_info?.name) {
+            markdown += `**Doctor:** ${clinicalData.doctor_info.name}`;
+            if (clinicalData.doctor_info.qualifications) {
+                markdown += ` (${clinicalData.doctor_info.qualifications})`;
+            }
+            markdown += `\n`;
+        }
+        if (clinicalData.patient_info?.name) {
+            markdown += `**Patient:** ${clinicalData.patient_info.name}`;
+            if (clinicalData.patient_info.age) markdown += `, ${clinicalData.patient_info.age}`;
+            if (clinicalData.patient_info.sex) markdown += `, ${clinicalData.patient_info.sex}`;
+            markdown += `\n`;
+        }
+        markdown += `\n`;
+    }
 
-    // Medication list
-    markdown += `### Medications\n\n`;
+    // Complaints
+    if (clinicalData?.complaints && clinicalData.complaints.length > 0) {
+        markdown += `### Chief Complaints\n\n`;
+        for (const complaint of clinicalData.complaints) {
+            markdown += `- ${complaint}\n`;
+        }
+        markdown += `\n`;
+    }
+
+    // Vitals
+    if (clinicalData?.vitals) {
+        const vitals = clinicalData.vitals;
+        const vitalsList: string[] = [];
+        if (vitals.bp) vitalsList.push(`BP: ${vitals.bp}`);
+        if (vitals.pulse) vitalsList.push(`Pulse: ${vitals.pulse}`);
+        if (vitals.rbs) vitalsList.push(`RBS: ${vitals.rbs}`);
+        if (vitals.fbs) vitalsList.push(`FBS: ${vitals.fbs}`);
+        if (vitals.ppbs) vitalsList.push(`PPBS: ${vitals.ppbs}`);
+        if (vitals.spo2) vitalsList.push(`SpO2: ${vitals.spo2}`);
+        if (vitals.temperature) vitalsList.push(`Temp: ${vitals.temperature}`);
+
+        if (vitalsList.length > 0) {
+            markdown += `### Vitals\n\n`;
+            markdown += `${vitalsList.join(' • ')}\n\n`;
+        }
+    }
+
+    // Diagnosis
+    if (clinicalData?.diagnosis) {
+        markdown += `### Diagnosis\n\n`;
+        markdown += `${clinicalData.diagnosis}\n\n`;
+    }
+
+    // Medications header
+    markdown += `### Medications (${medications.length})\n\n`;
 
     for (let i = 0; i < medications.length; i++) {
         const med = medications[i];

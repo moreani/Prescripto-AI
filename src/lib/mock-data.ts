@@ -31,6 +31,29 @@ export const MOCK_PRESCRIPTION_EXTRACT: PrescriptionExtract = {
     prescription_id: 'mock-rx-001',
     source_type: 'image',
     ocr_text: MOCK_OCR_TEXT,
+    patient_info: {
+        name: 'Mr. Sharma',
+        age: '45 years',
+        sex: 'Male',
+        uhid: null,
+    },
+    date: '15/01/2024',
+    doctor_info: {
+        name: 'Dr. Rajesh Kumar',
+        qualifications: 'MBBS, MD',
+        hospital: 'Apollo Hospital, New Delhi',
+    },
+    complaints: ['Routine checkup', 'Blood pressure monitoring'],
+    vitals: {
+        bp: '130/85 mmHg',
+        pulse: '78 bpm',
+        rbs: null,
+        fbs: null,
+        ppbs: null,
+        spo2: '98%',
+        temperature: null,
+    },
+    diagnosis: 'Type 2 Diabetes Mellitus, Hypertension',
     medications: [
         {
             name: 'Metformin',
@@ -112,6 +135,7 @@ export const MOCK_PRESCRIPTION_EXTRACT: PrescriptionExtract = {
     ],
     follow_up: 'Follow up after 1 month',
     tests: ['Check blood sugar fasting after 2 weeks'],
+    advice: ['Low salt diet recommended'],
 };
 
 export const MOCK_NOTES_OUTPUT: NotesOutput = {

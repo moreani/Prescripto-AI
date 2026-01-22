@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getMockOCRResult } from '@/lib/mock-data';
 import { OCRResult } from '@/lib/schema';
 import { validateOCRInput } from '@/lib/ocr';
+import { preprocessPrescriptionImage } from '@/lib/image-preprocess';
 
 /**
  * Use Gemini Vision to extract text from an image
@@ -13,14 +14,21 @@ async function extractTextWithGeminiVision(
     mimeType: string
 ): Promise<string> {
     const apiKey = process.env.GEMINI_API_KEY;
-    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+    const model = process.env.GEMINI_MODEL || 'gemini-2.0-pro';
 
     if (!apiKey) {
         throw new Error('GEMINI_API_KEY is not configured');
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const geminiModel = genAI.getGenerativeModel({ model });
+    const geminiModel = genAI.getGenerativeModel({
+        model,
+        generationConfig: {
+            temperature: 0,      // Deterministic output - no creativity
+            topP: 0.8,           // Focus on high-probability tokens
+            maxOutputTokens: 8192, // Allow long responses
+        },
+    });
 
     const imagePart = {
         inlineData: {
@@ -29,197 +37,154 @@ async function extractTextWithGeminiVision(
         },
     };
 
-    const prompt = `You are an EXPERT medical prescription reader with 30+ years of experience decoding doctors' handwriting. You have successfully read thousands of prescriptions from Indian hospitals and clinics.
+    const prompt = `You are an EXPERT Indian Clinical Pharmacist with 30+ years of experience reading doctors' handwriting. Your task is to extract EVERY detail from this prescription accurately.
 
 ═══════════════════════════════════════════════════════════════
-                    READING STRATEGY
+              🚨 CRITICAL PATIENT SAFETY DATA 🚨
 ═══════════════════════════════════════════════════════════════
 
-STEP 1 - SCAN THE DOCUMENT:
-• Identify the printed header (hospital/clinic info)
-• Locate handwritten sections
-• Find medication list (usually numbered or bulleted)
-• Spot any stamps, signatures, or dates
+FOR PEDIATRIC PRESCRIPTIONS (children), WEIGHT IS CRITICAL!
+Look for: "Wt:", "Weight:", "W:", or a number followed by "kg" or "g"
+⚠️ NEVER skip weight - it's needed to verify if doses are safe!
 
-STEP 2 - READ SYSTEMATICALLY (Top to Bottom, Left to Right):
-• Start with printed text (easier) to establish context
-• Then tackle handwritten portions
-• For difficult words, look at individual letters
-• Use surrounding context to guess unclear words
-
-STEP 3 - VERIFY MEDICATIONS:
-• Cross-reference drug names against common prescriptions
-• Check that dosages make medical sense
-• Ensure frequencies match standard patterns
+ALWAYS CAPTURE FROM HEADER:
+• Name: (look after "Name:")
+• Age: (look after "Age:" - could be months/years)
+• Sex: (M/F after "Sex:")
+• Weight: (number + kg/g after "Wt:" or "Weight:")
+• Temperature: (after "Temp:")
+• Date: (anywhere in header)
 
 ═══════════════════════════════════════════════════════════════
-                    MEDICAL ABBREVIATIONS DICTIONARY
+                    CRITICAL: READ EVERYTHING
 ═══════════════════════════════════════════════════════════════
 
-PATIENT HISTORY:
-• c/o = Complaining of
-• H/o = History of
-• K/c/o = Known case of
-• N/K/C = Not a known case
-• NKDA = No known drug allergies
-• LMP = Last menstrual period
+⚠️ SCAN THE ENTIRE IMAGE MULTIPLE TIMES:
+1. HEADER AREA: Patient details, weight, temp, date
+2. MAIN BODY: Medications list
+3. LEFT MARGIN: Often has tests/notes
+4. RIGHT MARGIN: Duration markers, brackets
+5. BOTTOM: Advice, follow-up
+6. DIAGONAL/ROTATED TEXT
 
-VITALS & MEASUREMENTS:
-• BP = Blood Pressure (format: 120/80 mmHg)
-• PR = Pulse Rate (format: 72/min or 72 bpm)
-• RBS = Random Blood Sugar
-• FBS = Fasting Blood Sugar
-• SpO2 = Oxygen saturation
-• Temp = Temperature
-• Wt = Weight, Ht = Height
+═══════════════════════════════════════════════════════════════
+                    DRUG NAME RECOGNITION
+═══════════════════════════════════════════════════════════════
 
-DIAGNOSIS:
-• Imp = Impression (diagnosis)
-• D/D = Differential diagnosis
-• ? = Query/Suspected
-• AGE = Acute gastroenteritis
-• URTI = Upper respiratory tract infection
-• UTI = Urinary tract infection
-• LRTI = Lower respiratory tract infection
-• HTN = Hypertension
-• DM = Diabetes mellitus
-• CKD = Chronic kidney disease
+🔴 CRITICAL: Only output drug names that ACTUALLY EXIST!
+If unsure, mark as [UNCLEAR - verify with doctor]
 
-MEDICATIONS:
-• Tab / T. = Tablet
-• Cap / C. = Capsule
-• Inj = Injection
-• Syr = Syrup
-• Drops / Gtt = Drops
-• Oint = Ointment
-• Susp = Suspension
-• Neb = Nebulization
-• IV = Intravenous
-• IM = Intramuscular
-• SC = Subcutaneous
-• PO = Per oral (by mouth)
+PEDIATRIC DROPS (very common):
+• T-minic drops (cold/cough)
+• Asthakind drops (cough)
+• Nasoclear drops / Nasal drops / Saline drops (nose clearing)
+• Calpol drops (fever)
+• Sinarest drops (cold)
+• Coriminic drops (cold)
+• Ondem drops (vomiting)
+• Cyclopam drops (stomach pain)
+• Colicaid drops (colic)
+• Bonnisan drops (digestion)
+• Practin drops (appetite)
 
-FREQUENCY & TIMING:
-• OD = Once daily
-• BD = Twice daily (Bis die)
-• TDS / TID = Three times daily
-• QID = Four times daily
-• HS = At bedtime (Hora somni)
-• SOS / PRN = As needed
-• stat = Immediately
-• AC = Before meals (Ante cibum)
-• PC = After meals (Post cibum)
-• q4h, q6h, q8h = Every 4/6/8 hours
+NASAL/EYE/EAR:
+• Nasoclear (saline nasal drops)
+• Otrivin (nasal decongestant)
+• Nasivion (nasal drops)
+• Ciplox-D (eye/ear drops)
+• Moxiflox (eye drops)
 
-DURATION:
-• x 3d = for 3 days
+CREAMS/OINTMENTS:
+• HH-zole cream (antifungal)
+• Candid cream (antifungal)
+• Soframycin (antibiotic cream)
+• Betnovate (steroid cream)
+• Clobetasol (steroid)
+• Mupirocin / T-bact (antibiotic)
+
+SYRUPS:
+• Ascoril, Grilinctus, Alex (cough)
+• Calpol, Crocin (fever)
+• Augmentin, Azithral (antibiotic)
+• Ondem, Emeset (vomiting)
+• Gelusil, Digene (antacid)
+
+ADULT TABLETS:
+• Dolo 650, Crocin, Calpol (fever)
+• Combiflam, Zerodol-P (pain)
+• Pan D, Pantop D (acidity)
+• Azithral, Augmentin (antibiotic)
+• Montair-LC, Allegra (allergy)
+
+═══════════════════════════════════════════════════════════════
+                    DOSAGE NOTATION DECODER
+═══════════════════════════════════════════════════════════════
+
+TIMING PATTERNS:
+• 0.3—0.3—0.3 means Morning—Afternoon—Night (TDS)
+• 0.4—0.4—0.4 means same dose three times
+• 1-0-1 means Morning and Night only (skip afternoon)
+• 1-1-1 means all three times
+
+DURATION (often in bracket on right side):
+• } 3 days = applies to all medicines in bracket
+• x 5d or x5 = for 5 days
 • x 1w = for 1 week
-• x 2/52 = for 2 weeks
-• x 1/12 = for 1 month
 
-COMMON DRUG NAMES (look for these patterns):
-• Paracetamol, Dolo, Crocin, Calpol (fever)
-• Azithromycin, Augmentin, Amoxicillin (antibiotics)
-• Pantoprazole, Omeprazole, Rabeprazole (acidity)
-• Ondansetron, Domperidone, Emeset (vomiting)
-• Cetirizine, Levocetirizine, Allegra (allergy)
-• Montelukast, Montair (respiratory)
-• ORS, Electral, Pedialyte (dehydration)
-• Metformin, Glimepiride (diabetes)
-• Amlodipine, Telmisartan (BP)
-• Vitamin D3, Calcium, B-complex (supplements)
+DIAGNOSIS with duration:
+• "Cold x 2 days" means Cold for past 2 days (symptom duration)
+• "Cough x 3 days" means Cough for past 3 days
 
 ═══════════════════════════════════════════════════════════════
-                    INDIAN PRESCRIPTION PATTERNS
+                    ANTI-HALLUCINATION RULES
 ═══════════════════════════════════════════════════════════════
 
-HEADER (Usually Printed):
-• Hospital/Clinic name (may include Hindi/regional script)
-• Doctor's name with qualifications (MBBS, MD, MS, DM, etc.)
-• Registration number (e.g., KMC 12345, MCI 67890)
-• Contact info, address
+❌ NEVER invent drug names that don't exist
+❌ NEVER make up dosages not written
+❌ If you can't read it clearly, write [UNCLEAR]
+❌ Don't guess - if "Nasoclear" looks like "Nano..." it's still Nasoclear
 
-HANDWRITTEN SECTION:
-• Date (DD/MM/YY or DD-MM-YYYY)
-• Patient name, age, sex written first
-• "Rx" symbol marks start of prescription
-• Numbered medications (1, 2, 3...) or circled numbers
-• Circled quantities indicate number of tablets/doses
-• Arrows (→) show instructions
-• "Adv:" or "Advice:" section at end
-• Follow-up date often mentioned
-
-REGIONAL LANGUAGES:
-• If Hindi, Kannada, Tamil, Telugu text visible, transliterate to English
-• Common words: Dawai (medicine), Bukhar (fever), Pet dard (stomach pain)
+✅ Bias towards REAL Indian drug names from the list above
+✅ "Nasal drops" likely means Nasoclear or similar saline drops
+✅ Weight written as "6.6" near "Wt" means 6.6 kg
 
 ═══════════════════════════════════════════════════════════════
-                    STRICT OUTPUT FORMAT
+                    OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════════
 
-You MUST respond in EXACTLY this format. Fill ALL fields. Use [?] for uncertain readings, but NEVER leave empty:
+**CLINICAL CONTEXT**
+• Doctor/Hospital: [Name]
+• Date: [DD/MM/YY]
+• Patient Name: [Name]
+• Age: [X months/years]
+• Sex: [M/F]
+• Weight: [X.X kg] ← CRITICAL FOR CHILDREN
+• Temperature: [X°F or °C]
+• Diagnosis/Complaints: [What patient has, with duration]
 
----
-DATE: [DD/MM/YYYY or as written]
+**MEDICATIONS** (Total: X medicines)
+| # | Type | Medicine Name | Dose | Morning | Afternoon | Night | Duration | Notes |
+|---|------|---------------|------|---------|-----------|-------|----------|-------|
+| 1 | Drops | T-minic | 0.3ml | ✓ | ✓ | ✓ | 3 days | For cold |
+| 2 | Drops | Nasoclear | 2 drops | ✓ | - | ✓ | - | Nasal saline |
+...
 
-HOSPITAL/CLINIC: [Full name from header]
-ADDRESS: [If visible]
-PHONE: [If visible]
+**ADVICE**
+• [Any written advice]
+• Follow-up: [Date if mentioned]
 
-DOCTOR: [Full name]
-QUALIFICATIONS: [MBBS, MD, etc.]
-REGISTRATION: [Reg number if visible]
-
-PATIENT NAME: [Full name]
-AGE: [Number] years/months
-SEX: [Male/Female]
-UHID/ID: [If any ID visible]
-
-CHIEF COMPLAINTS (c/o):
-• [Complaint 1]
-• [Complaint 2]
-
-HISTORY (H/o):
-• [Relevant history]
-
-VITALS:
-• BP: [value or "Not recorded"]
-• Pulse: [value or "Not recorded"]
-• SpO2: [value or "Not recorded"]
-• Temperature: [value or "Not recorded"]
-
-DIAGNOSIS/IMPRESSION:
-[Primary diagnosis]
-
-MEDICATIONS (Rx):
-1. [Drug name] [Strength] - [Dose] [Frequency] - [Duration] - [Special instructions]
-2. [Drug name] [Strength] - [Dose] [Frequency] - [Duration] - [Special instructions]
-3. [Continue for ALL medications...]
-
-INVESTIGATIONS ADVISED:
-• [Any tests ordered]
-
-ADVICE:
-• [Diet, rest, precautions]
-
-FOLLOW-UP: [Date or duration]
-
-NOTES: [Any other text visible on prescription]
----
+**⚠️ UNCLEAR/VERIFY**
+• [List anything you couldn't read clearly]
 
 ═══════════════════════════════════════════════════════════════
-                    CRITICAL REMINDERS
-═══════════════════════════════════════════════════════════════
 
-1. NEVER give up on difficult handwriting - try letter by letter
-2. Use medical context to make educated guesses
-3. Common medicines have recognizable patterns even in bad handwriting
-4. Mark uncertain readings with [?] but always provide your best guess
-5. Look at the ENTIRE image including margins, stamps, and watermarks
-6. If you see numbers, they are likely: dates, quantities, or dosages
-7. Prescription quantities are often circled (e.g., ⑩ = 10 tablets)
+Now read this prescription carefully.
+CHECKLIST before responding:
+☐ Did I capture the WEIGHT? (Critical for kids!)
+☐ Did I capture ALL medicines?
+☐ Are all drug names REAL drugs that exist?
+☐ Did I check margins and brackets for duration?`; 
 
-NOW, carefully examine this prescription image and extract ALL information:`;
 
     const result = await geminiModel.generateContent([prompt, imagePart]);
     const response = await result.response;
@@ -268,15 +233,23 @@ export async function POST(request: NextRequest) {
         console.log('[API/OCR] Using Gemini Vision for OCR');
 
         let imageBase64: string;
+        let processedMimeType: string = actualMimeType;
 
         if (base64Data) {
-            // Already have base64 data
-            imageBase64 = base64Data;
+            // Already have base64 data - preprocess it
+            const rawBuffer = Buffer.from(base64Data, 'base64');
+            console.log('[API/OCR] Preprocessing uploaded image...');
+            const processed = await preprocessPrescriptionImage(rawBuffer, actualMimeType);
+            imageBase64 = processed.base64;
+            processedMimeType = processed.mimeType;
         } else if (file) {
-            // Convert file to base64
+            // Convert file to buffer and preprocess
             const arrayBuffer = await file.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-            imageBase64 = buffer.toString('base64');
+            const rawBuffer = Buffer.from(arrayBuffer);
+            console.log('[API/OCR] Preprocessing uploaded file...');
+            const processed = await preprocessPrescriptionImage(rawBuffer, actualMimeType);
+            imageBase64 = processed.base64;
+            processedMimeType = processed.mimeType;
         } else {
             return NextResponse.json(
                 { error: 'No file data provided.' },
@@ -284,8 +257,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Extract text using Gemini Vision
-        const extractedText = await extractTextWithGeminiVision(imageBase64, actualMimeType);
+        // Extract text using Gemini Vision with preprocessed image
+        const extractedText = await extractTextWithGeminiVision(imageBase64, processedMimeType);
 
         const result: OCRResult = {
             prescription_id: prescriptionId,

@@ -48,6 +48,7 @@ function UploadPageContent() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isTestMode, setIsTestMode] = useState(false);
+    const [isQAMode, setIsQAMode] = useState(false);
     const [configLoaded, setConfigLoaded] = useState(false);
 
     // Fetch config on mount
@@ -56,6 +57,7 @@ function UploadPageContent() {
             .then(res => res.json())
             .then(data => {
                 setIsTestMode(data.testMode);
+                setIsQAMode(data.qaMode);
                 setConfigLoaded(true);
             })
             .catch(() => {
@@ -63,12 +65,20 @@ function UploadPageContent() {
             });
     }, []);
 
-    const [processingSteps, setProcessingSteps] = useState<ProcessingStep[]>([
+    // Different processing steps for QA mode vs normal mode
+    const qaProcessingSteps: ProcessingStep[] = [
+        { id: 'ocr', label: 'Raw transcription (QA mode)...', status: 'pending' },
+        { id: 'final', label: 'Generating QA PDF...', status: 'pending' },
+    ];
+
+    const normalProcessingSteps: ProcessingStep[] = [
         { id: 'ocr', label: 'Reading prescription...', status: 'pending' },
         { id: 'extract', label: 'Extracting medications...', status: 'pending' },
         { id: 'notes', label: 'Generating schedule...', status: 'pending' },
         { id: 'final', label: 'Preparing PDF...', status: 'pending' },
-    ]);
+    ];
+
+    const [processingSteps, setProcessingSteps] = useState<ProcessingStep[]>(normalProcessingSteps);
 
     const handleFileSelect = (selectedFiles: File[]) => {
         setFiles(selectedFiles);
@@ -110,8 +120,8 @@ function UploadPageContent() {
             return;
         }
 
-        // Only validate email if not in test mode
-        if (!isTestMode && (!email || !validateEmail(email))) {
+        // Only validate email if not in test mode and not in QA mode
+        if (!isTestMode && !isQAMode && (!email || !validateEmail(email))) {
             setEmailError('Please enter a valid email address');
             return;
         }
@@ -119,10 +129,105 @@ function UploadPageContent() {
         setIsProcessing(true);
         setError(null);
 
-        // Reset all steps to pending
-        setProcessingSteps(prev => prev.map(s => ({ ...s, status: 'pending' })));
+        // Set appropriate processing steps based on mode
+        const steps = isQAMode ? qaProcessingSteps : normalProcessingSteps;
+        setProcessingSteps(steps.map(s => ({ ...s, status: 'pending' })));
 
         try {
+            // ═══════════════════════════════════════════════════════════════
+            //                    QA MODE FLOW
+            // ═══════════════════════════════════════════════════════════════
+            if (isQAMode) {
+                // Step 1: Raw OCR transcription
+                updateStepStatus('ocr', 'active');
+
+                let combinedRawText = '';
+                let prescriptionId = '';
+
+                for (let i = 0; i < files.length; i++) {
+                    const formData = new FormData();
+                    formData.append('file', files[i]);
+                    formData.append('mimeType', files[i].type);
+
+                    // Use the raw OCR endpoint for QA mode
+                    const ocrResponse = await fetch('/api/ocr/raw', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    if (!ocrResponse.ok) {
+                        const errorMessage = await getErrorMessage(ocrResponse, `Failed to read prescription page ${i + 1}`);
+                        throw new Error(errorMessage);
+                    }
+
+                    const ocrResult = await ocrResponse.json();
+
+                    if (i === 0) {
+                        prescriptionId = ocrResult.prescription_id;
+                    }
+
+                    combinedRawText += `\n════════════════════════════════════════\n`;
+                    combinedRawText += `                PAGE ${i + 1}\n`;
+                    combinedRawText += `════════════════════════════════════════\n\n`;
+                    combinedRawText += ocrResult.raw_transcription;
+                    combinedRawText += '\n\n';
+                }
+
+                updateStepStatus('ocr', 'complete');
+
+                // Step 2: Generate QA PDF
+                updateStepStatus('final', 'active');
+
+                const pdfResponse = await fetch('/api/export/qa-pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prescription_id: prescriptionId,
+                        raw_transcription: combinedRawText,
+                        source_type: files[0].type === 'application/pdf' ? 'pdf' : 'image',
+                        timestamp: new Date().toISOString(),
+                    }),
+                });
+
+                if (!pdfResponse.ok) {
+                    const errorMessage = await getErrorMessage(pdfResponse, 'Failed to generate QA PDF');
+                    throw new Error(errorMessage);
+                }
+
+                const pdfData = await pdfResponse.json();
+
+                // Download the QA PDF
+                const base64Data = pdfData.pdf_base64.split(',')[1];
+                const binaryData = atob(base64Data);
+                const bytes = new Uint8Array(binaryData.length);
+                for (let i = 0; i < binaryData.length; i++) {
+                    bytes[i] = binaryData.charCodeAt(i);
+                }
+                const pdfBlob = new Blob([bytes], { type: 'application/pdf' });
+
+                const url = window.URL.createObjectURL(pdfBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = pdfData.filename || `qa-transcription-${prescriptionId.slice(0, 8)}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+
+                updateStepStatus('final', 'complete');
+
+                // Redirect to success page (QA mode)
+                setTimeout(() => {
+                    router.push(`/success?qa=true`);
+                }, 500);
+
+                return;
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            //                    NORMAL MODE FLOW
+            // ═══════════════════════════════════════════════════════════════
+            
             // Step 1: OCR - Process all files
             updateStepStatus('ocr', 'active');
 
@@ -187,6 +292,14 @@ function UploadPageContent() {
                     medications: extractResult.medications,
                     follow_up: extractResult.follow_up,
                     tests: extractResult.tests,
+                    // Pass all clinical data to notes generation
+                    patient_info: extractResult.patient_info,
+                    date: extractResult.date,
+                    doctor_info: extractResult.doctor_info,
+                    complaints: extractResult.complaints,
+                    vitals: extractResult.vitals,
+                    diagnosis: extractResult.diagnosis,
+                    advice: extractResult.advice,
                 }),
             });
 
@@ -279,8 +392,8 @@ function UploadPageContent() {
         }
     };
 
-    // Form is valid if files selected AND (test mode OR valid email)
-    const isFormValid = files.length > 0 && (isTestMode || (email && validateEmail(email))) && !isProcessing;
+    // Form is valid if files selected AND (test mode OR QA mode OR valid email)
+    const isFormValid = files.length > 0 && (isTestMode || isQAMode || (email && validateEmail(email))) && !isProcessing;
 
     return (
         <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-950 dark:to-indigo-950 py-12">
@@ -321,8 +434,8 @@ function UploadPageContent() {
                     />
                 </div>
 
-                {/* Email Input - Shows after file selection (only in email mode) */}
-                {files.length > 0 && !isTestMode && (
+                {/* Email Input - Shows after file selection (only in email mode, not in test/QA mode) */}
+                {files.length > 0 && !isTestMode && !isQAMode && (
                     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8 mb-6 animate-fadeIn">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
@@ -368,8 +481,27 @@ function UploadPageContent() {
                     </div>
                 )}
 
+                {/* QA Mode Notice */}
+                {files.length > 0 && isQAMode && (
+                    <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6 animate-fadeIn">
+                        <div className="flex items-center gap-3">
+                            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                            <div>
+                                <h3 className="font-semibold text-red-900 dark:text-red-100">
+                                    ⚠️ QA/Testing Mode Active
+                                </h3>
+                                <p className="text-sm text-red-700 dark:text-red-300">
+                                    Raw transcription PDF will be generated for accuracy verification.
+                                    <br />
+                                    <span className="font-medium">NOT for patient use.</span> Abbreviations will NOT be expanded.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Test Mode Notice */}
-                {files.length > 0 && isTestMode && (
+                {files.length > 0 && isTestMode && !isQAMode && (
                     <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-6 animate-fadeIn">
                         <div className="flex items-center gap-3">
                             <Download className="w-5 h-5 text-amber-600 dark:text-amber-400" />

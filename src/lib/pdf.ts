@@ -58,10 +58,119 @@ export function generatePDF(
         doc.rect(leftMargin, yPosition - 5, contentWidth, 20, 'F');
         doc.setFontSize(9);
         doc.setFont('helvetica', 'italic');
-        const disclaimer = 'IMPORTANT: This summary is for informational purposes only and does not constitute medical advice. Always verify with your doctor or pharmacist.';
+        const disclaimer = 'IMPORTANT: This summary is for informational purposes only. Always verify with your doctor or pharmacist.';
         const disclaimerLines = doc.splitTextToSize(disclaimer, contentWidth - 10);
         doc.text(disclaimerLines, leftMargin + 5, yPosition);
         yPosition += 25;
+    }
+
+    // Clinical Data Section (if available in notes)
+    const clinicalData = (notes as any).clinicalData;
+    if (clinicalData) {
+        // Patient & Doctor Info
+        if (clinicalData.date || clinicalData.doctor_info || clinicalData.patient_info) {
+            checkPageBreak(40);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+
+            if (clinicalData.date) {
+                doc.setFont('helvetica', 'bold');
+                doc.text('Date: ', leftMargin, yPosition);
+                doc.setFont('helvetica', 'normal');
+                doc.text(clinicalData.date, leftMargin + 15, yPosition);
+                yPosition += 6;
+            }
+
+            if (clinicalData.doctor_info?.hospital) {
+                doc.setFont('helvetica', 'bold');
+                doc.text('Hospital: ', leftMargin, yPosition);
+                doc.setFont('helvetica', 'normal');
+                doc.text(clinicalData.doctor_info.hospital, leftMargin + 20, yPosition);
+                yPosition += 6;
+            }
+
+            if (clinicalData.doctor_info?.name) {
+                doc.setFont('helvetica', 'bold');
+                doc.text('Doctor: ', leftMargin, yPosition);
+                doc.setFont('helvetica', 'normal');
+                let doctorText = clinicalData.doctor_info.name;
+                if (clinicalData.doctor_info.qualifications) {
+                    doctorText += ` (${clinicalData.doctor_info.qualifications})`;
+                }
+                doc.text(doctorText, leftMargin + 18, yPosition);
+                yPosition += 6;
+            }
+
+            if (clinicalData.patient_info?.name) {
+                doc.setFont('helvetica', 'bold');
+                doc.text('Patient: ', leftMargin, yPosition);
+                doc.setFont('helvetica', 'normal');
+                let patientText = clinicalData.patient_info.name;
+                if (clinicalData.patient_info.age) patientText += `, ${clinicalData.patient_info.age}`;
+                if (clinicalData.patient_info.sex) patientText += `, ${clinicalData.patient_info.sex}`;
+                doc.text(patientText, leftMargin + 18, yPosition);
+                yPosition += 6;
+            }
+            yPosition += 5;
+        }
+
+        // Complaints
+        if (clinicalData.complaints && clinicalData.complaints.length > 0) {
+            checkPageBreak(30);
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Chief Complaints', leftMargin, yPosition);
+            yPosition += 7;
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            for (const complaint of clinicalData.complaints) {
+                doc.text(`• ${complaint}`, leftMargin + 5, yPosition);
+                yPosition += 5;
+            }
+            yPosition += 5;
+        }
+
+        // Vitals
+        if (clinicalData.vitals) {
+            const vitals = clinicalData.vitals;
+            const vitalsList: string[] = [];
+            if (vitals.bp) vitalsList.push(`BP: ${vitals.bp}`);
+            if (vitals.pulse) vitalsList.push(`Pulse: ${vitals.pulse}`);
+            if (vitals.rbs) vitalsList.push(`RBS: ${vitals.rbs}`);
+            if (vitals.spo2) vitalsList.push(`SpO2: ${vitals.spo2}`);
+            if (vitals.temperature) vitalsList.push(`Temp: ${vitals.temperature}`);
+
+            if (vitalsList.length > 0) {
+                checkPageBreak(20);
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Vitals', leftMargin, yPosition);
+                yPosition += 7;
+
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(vitalsList.join('  •  '), leftMargin + 5, yPosition);
+                yPosition += 10;
+            }
+        }
+
+        // Diagnosis
+        if (clinicalData.diagnosis) {
+            checkPageBreak(20);
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Diagnosis', leftMargin, yPosition);
+            yPosition += 7;
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            const diagLines = doc.splitTextToSize(clinicalData.diagnosis, contentWidth - 10);
+            doc.text(diagLines, leftMargin + 5, yPosition);
+            yPosition += diagLines.length * 5 + 5;
+        }
+
+        yPosition += 5;
     }
 
     // Schedule Table

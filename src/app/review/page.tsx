@@ -89,6 +89,14 @@ function ReviewPageContent() {
                     medications: extract.medications,
                     follow_up: extract.follow_up,
                     tests: extract.tests,
+                    // Pass clinical data
+                    patient_info: extract.patient_info,
+                    date: extract.date,
+                    doctor_info: extract.doctor_info,
+                    complaints: extract.complaints,
+                    vitals: extract.vitals,
+                    diagnosis: extract.diagnosis,
+                    advice: extract.advice,
                 }),
             });
 
