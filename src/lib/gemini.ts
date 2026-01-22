@@ -55,6 +55,19 @@ You should extract 3 medications:
 2. Adequate fluid intake - oral - as needed
 3. ORS - 2 sachets - as directed
 
+═══════════════════════════════════════════════════════════════
+              TIMING ARRAY RULES (CRITICAL)
+═══════════════════════════════════════════════════════════════
+
+The "timing" array must ONLY include times when dose is given:
+- 1-0-1 notation → ["morning", "night"] (Twice daily - skip afternoon!)
+- 1-1-1 notation → ["morning", "afternoon", "night"] (Three times daily)  
+- 0-0-1 notation → ["night"] (Once at night)
+- 1-0-0 notation → ["morning"] (Once in morning)
+- BD/Twice daily → ["morning", "night"]
+- TDS/Three times daily → ["morning", "afternoon", "night"]
+- The MIDDLE number represents AFTERNOON. If it's 0, do NOT include afternoon!
+
 OUTPUT FORMAT (strict JSON):
 {
   "patient_info": {
@@ -88,14 +101,7 @@ OUTPUT FORMAT (strict JSON):
       "route": "string or null - oral, IV, topical, etc.",
       "dose": "string or null - e.g., '1 tablet', '2 sachets', '10 units'",
       "frequency": "string or null - expanded form like 'Twice daily', 'Immediately (stat)', 'As needed'",
-      "timing": ["CRITICAL: Array that ONLY includes times when dose is given. Map from notation:
-        - 1-0-1 = ['morning', 'night'] (Twice daily - skip afternoon!)
-        - 1-1-1 = ['morning', 'afternoon', 'night'] (Three times daily)
-        - 0-0-1 = ['night'] (Once at night)
-        - 1-0-0 = ['morning'] (Once in morning)
-        - If frequency says 'BD' or 'Twice daily', timing should be ['morning', 'night']
-        - If frequency says 'TDS' or 'Three times daily', timing should be ['morning', 'afternoon', 'night']
-        - NEVER put afternoon in timing if dose notation shows 0 for afternoon slot"],
+      "timing": ["morning", "afternoon", "night", "as_needed - ONLY include times when dose is given per rules above"],
       "duration_days": "number or null",
       "food_instruction": "string or null - before food, after food, with food",
       "instructions": ["array of additional instructions or empty array"],
