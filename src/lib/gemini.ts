@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { PrescriptionExtract, PrescriptionExtractSchema, Medication } from './schema';
 import { getMockPrescriptionExtract } from './mock-data';
 
-const EXTRACTION_PROMPT = `You are a medical prescription parser specialized in Indian prescriptions. Analyze the prescription text and extract ALL medication and treatment information into strict JSON format.
+const EXTRACTION_PROMPT = `You are a medical prescription parser. Analyze the prescription text and extract ALL medication and treatment information into strict JSON format.
 
 ═══════════════════════════════════════════════════════════════
               ANTI-HALLUCINATION RULES (CRITICAL)
@@ -88,7 +88,14 @@ OUTPUT FORMAT (strict JSON):
       "route": "string or null - oral, IV, topical, etc.",
       "dose": "string or null - e.g., '1 tablet', '2 sachets', '10 units'",
       "frequency": "string or null - expanded form like 'Twice daily', 'Immediately (stat)', 'As needed'",
-      "timing": ["array of strings or null - morning, afternoon, night, as_needed"],
+      "timing": ["CRITICAL: Array that ONLY includes times when dose is given. Map from notation:
+        - 1-0-1 = ['morning', 'night'] (Twice daily - skip afternoon!)
+        - 1-1-1 = ['morning', 'afternoon', 'night'] (Three times daily)
+        - 0-0-1 = ['night'] (Once at night)
+        - 1-0-0 = ['morning'] (Once in morning)
+        - If frequency says 'BD' or 'Twice daily', timing should be ['morning', 'night']
+        - If frequency says 'TDS' or 'Three times daily', timing should be ['morning', 'afternoon', 'night']
+        - NEVER put afternoon in timing if dose notation shows 0 for afternoon slot"],
       "duration_days": "number or null",
       "food_instruction": "string or null - before food, after food, with food",
       "instructions": ["array of additional instructions or empty array"],

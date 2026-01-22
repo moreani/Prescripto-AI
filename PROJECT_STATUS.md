@@ -97,7 +97,7 @@ app-build/
 - Uses sophisticated "Transcribe-Then-Interpret" prompt
 - Includes extensive medical abbreviation dictionary
 - Image preprocessing for better OCR accuracy
-- Handles Indian prescription formats
+- Handles various prescription formats
 
 ### `POST /api/ocr/raw` ⚠️ QA Mode
 **Purpose:** Raw OCR transcription for accuracy testing  

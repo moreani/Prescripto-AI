@@ -37,7 +37,7 @@ async function extractTextWithGeminiVision(
         },
     };
 
-    const prompt = `You are an EXPERT Indian Clinical Pharmacist with 30+ years of experience reading doctors' handwriting. Your task is to extract EVERY detail from this prescription accurately.
+    const prompt = `You are an EXPERT Clinical Pharmacist with 30+ years of experience reading doctors' handwriting. Your task is to extract EVERY detail from this prescription accurately.
 
 ═══════════════════════════════════════════════════════════════
               🚨 CRITICAL PATIENT SAFETY DATA 🚨
@@ -120,11 +120,13 @@ ADULT TABLETS:
                     DOSAGE NOTATION DECODER
 ═══════════════════════════════════════════════════════════════
 
-TIMING PATTERNS:
-• 0.3—0.3—0.3 means Morning—Afternoon—Night (TDS)
-• 0.4—0.4—0.4 means same dose three times
-• 1-0-1 means Morning and Night only (skip afternoon)
-• 1-1-1 means all three times
+TIMING PATTERNS (CRITICAL - maps to frequency):
+• 1—0—1 or 1-0-1 means Morning and Night ONLY = "Twice daily" (BD)
+• 0—0—1 or 0-0-1 means Night ONLY = "Once daily at night"
+• 1—0—0 or 1-0-0 means Morning ONLY = "Once daily in morning"  
+• 1—1—1 or 1-1-1 means Morning, Afternoon, AND Night = "Three times daily" (TDS)
+• 0.3—0.3—0.3 means same dose three times = "Three times daily" (TDS)
+• The MIDDLE number is AFTERNOON. If it's 0, skip afternoon!
 
 DURATION (often in bracket on right side):
 • } 3 days = applies to all medicines in bracket
@@ -144,7 +146,7 @@ DIAGNOSIS with duration:
 ❌ If you can't read it clearly, write [UNCLEAR]
 ❌ Don't guess - if "Nasoclear" looks like "Nano..." it's still Nasoclear
 
-✅ Bias towards REAL Indian drug names from the list above
+✅ Bias towards REAL drug names from the list above
 ✅ "Nasal drops" likely means Nasoclear or similar saline drops
 ✅ Weight written as "6.6" near "Wt" means 6.6 kg
 
@@ -183,7 +185,7 @@ CHECKLIST before responding:
 ☐ Did I capture the WEIGHT? (Critical for kids!)
 ☐ Did I capture ALL medicines?
 ☐ Are all drug names REAL drugs that exist?
-☐ Did I check margins and brackets for duration?`; 
+☐ Did I check margins and brackets for duration?`;
 
 
     const result = await geminiModel.generateContent([prompt, imagePart]);

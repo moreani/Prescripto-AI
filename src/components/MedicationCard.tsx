@@ -237,19 +237,19 @@ export function MedicationCard({
                         <>
                             {/* Details Grid */}
                             <div className="grid grid-cols-2 gap-4 text-sm">
-                                <DetailItem label="Form" value={medication.form} confidence={medication.confidence.form} />
-                                <DetailItem label="Route" value={medication.route} confidence={medication.confidence.route} />
-                                <DetailItem label="Dose" value={medication.dose} confidence={medication.confidence.dose} />
-                                <DetailItem label="Frequency" value={formatFrequency(medication.frequency)} confidence={medication.confidence.frequency} />
+                                <DetailItem label="Form" value={medication.form} confidence={medication.confidence.form ?? undefined} />
+                                <DetailItem label="Route" value={medication.route} confidence={medication.confidence.route ?? undefined} />
+                                <DetailItem label="Dose" value={medication.dose} confidence={medication.confidence.dose ?? undefined} />
+                                <DetailItem label="Frequency" value={formatFrequency(medication.frequency)} confidence={medication.confidence.frequency ?? undefined} />
                                 <DetailItem
                                     label="Duration"
                                     value={medication.duration_days ? `${medication.duration_days} days` : null}
-                                    confidence={medication.confidence.duration_days}
+                                    confidence={medication.confidence.duration_days ?? undefined}
                                 />
                                 <DetailItem
                                     label="Food"
                                     value={formatFoodInstruction(medication.food_instruction)}
-                                    confidence={medication.confidence.food_instruction}
+                                    confidence={medication.confidence.food_instruction ?? undefined}
                                 />
                             </div>
 
